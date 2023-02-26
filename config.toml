@@ -1,0 +1,20 @@
+[info]
+relay_url = "ws://localhost:8080/"
+primary_keys = ["7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9"]
+
+[primary]
+can_publish = true
+
+[secondary]
+can_publish = true
+# events_per_hour = 100
+
+[tertiary]
+can_publish = true
+# events_per_hour = 50
+
+[quaternary]
+can_publish = false
+
+[other]
+can_publish = false
