@@ -17,14 +17,14 @@ pub struct Repo {
 
 impl Default for Repo {
     fn default() -> Self {
-        Self::new()
+        Self::new(HashSet::new())
     }
 }
 
 impl Repo {
-    pub fn new() -> Self {
+    pub fn new(primary: HashSet<String>) -> Self {
         Repo {
-            db: Arc::new(Mutex::new(Db::new())),
+            db: Arc::new(Mutex::new(Db::new(primary))),
         }
     }
 

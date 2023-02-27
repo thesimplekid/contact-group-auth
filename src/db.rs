@@ -71,16 +71,17 @@ pub struct Account {
 
 pub struct Db {
     db: Database,
+    primary: HashSet<String>,
 }
 
 impl Default for Db {
     fn default() -> Self {
-        Self::new()
+        Self::new(HashSet::new())
     }
 }
 
 impl Db {
-    pub fn new() -> Self {
+    pub fn new(primary: HashSet<String>) -> Self {
         debug!("Creating DB");
         let db = Database::create("my_db.redb").unwrap();
         db.set_write_strategy(WriteStrategy::TwoPhase).unwrap();
@@ -94,7 +95,7 @@ impl Db {
         }
         write_txn.commit().unwrap();
 
-        Self { db }
+        Self { db, primary }
     }
 
     pub fn write_account(&self, account: &Account) -> Result<(), Error> {
@@ -286,6 +287,8 @@ impl Db {
             .map(|(p, t)| (p.to_string(), Tier::from(t.value())))
             .collect();
 
+        debug!("{} followed by {:?}", pubkey, followers);
+
         Ok(followers)
     }
 
@@ -293,20 +296,28 @@ impl Db {
         debug!("Update account: {pubkey}");
         let mut tier = min_tier;
         debug!("{tier:?}");
+
         // Get account followers
         let followers = self.get_followers(pubkey)?;
         debug!("Followers: {:?}", followers);
 
         // Min tier of follower
-        let min_value = followers.iter().min_by_key(|&(_, v)| v).map(|(_, v)| *v);
-
-        debug!("{min_tier:?}");
-        if let Some(min_tier) = min_value {
-            let t = min_tier.raise_tier();
-            if t > tier {
-                tier = t;
+        if self.primary.contains(pubkey) {
+            tier = Tier::Primary;
+        } else {
+            // Minium tier based on followers
+            let min_tier = followers.iter().min_by_key(|&(_, v)| v).map(|(_, v)| *v);
+            debug!("Follower min tier: {min_tier:?}");
+            if let Some(min_tier) = min_tier {
+                let t = min_tier.raise_tier();
+                if t < tier {
+                    tier = t;
+                }
             }
         }
+
+        debug!("New tier: {tier:?}");
+
         let account = Account {
             pubkey: pubkey.to_string(),
             tier,
@@ -322,6 +333,7 @@ impl Db {
             if let Some(account) = self.read_account(l.0)? {
                 // Get current list of follows
                 let current_follows = self.get_follows(l.0)?;
+                self.set_contact_list(contacts)?;
                 debug!("current follows: {:?}", current_follows);
                 debug!("new contact list {:?}", l.1);
 
@@ -343,7 +355,6 @@ impl Db {
                 self.update_follows(unfollowed, unfollowed_tier)?;
             }
         }
-        self.set_contact_list(contacts)?;
         Ok(())
     }
 

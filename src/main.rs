@@ -133,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let nos = Nostr::new(&settings.info.relay_url, &settings.info.nostr_key).await?;
 
-    let repo = Repo::new();
+    let repo = Repo::new(settings.info.primary_keys.clone());
 
     init(&settings, &repo, &nos).await?;
 
