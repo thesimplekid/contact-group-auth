@@ -1,6 +1,6 @@
 
 ## TODO:
-- [ ] some update logic is broken, follows of follows ... tiers are not updated
+- [x] some update logic is broken, follows of follows ... tiers are not updated
 - [ ] async isnt done right
 - [ ] Spawn requests in init
 - [ ] DB will often have to be deleted and recreated fairly often to fix some corruption error.  Seems to function okay but if database is closed cant be reopened.
@@ -8,7 +8,7 @@
 
 # gRPC Extensions for nostr-rs-relay
 
-gRPC authz server for [nostr-rs-rely](https://github.com/scsibug/nostr-rs-relay). Admits events based on the proximity of a social graph. Principal users are set in the config file, other users are catagozioed into tiers based on the proximity to that primary group.
+gRPC authz server for [nostr-rs-rely](https://github.com/scsibug/nostr-rs-relay). Admits events based on the proximity of a social graph. Principal users are set in the config file, other users are categorized into tiers based on the proximity to that primary group.
 
 If the relay has nip42 enabled it will use the authenticated pubkey if not the author pubkey of the note will be used. 
 

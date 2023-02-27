@@ -289,18 +289,18 @@ impl Db {
         Ok(followers)
     }
 
-    // fn remove_follows(&self, pubkey: &str, follows: HashSet<String>) -> Result<(), Error> {
-
-    //  }
-
     fn update_account(&self, pubkey: &str, min_tier: Tier) -> Result<(), Error> {
+        debug!("Update account: {pubkey}");
         let mut tier = min_tier;
         debug!("{tier:?}");
         // Get account followers
         let followers = self.get_followers(pubkey)?;
+        debug!("Followers: {:?}", followers);
+
         // Min tier of follower
         let min_value = followers.iter().min_by_key(|&(_, v)| v).map(|(_, v)| *v);
 
+        debug!("{min_tier:?}");
         if let Some(min_tier) = min_value {
             let t = min_tier.raise_tier();
             if t > tier {
@@ -312,8 +312,6 @@ impl Db {
             tier,
         };
         self.write_account(&account)
-
-        // Set tier to highest follower tier + 1
     }
 
     pub fn update_contact_list(
@@ -326,89 +324,41 @@ impl Db {
                 let current_follows = self.get_follows(l.0)?;
                 debug!("current follows: {:?}", current_follows);
                 debug!("new contact list {:?}", l.1);
-                // Remove any that have ben unfollowed
+
                 let new_follows: HashSet<String> =
                     l.1.difference(&current_follows).cloned().collect();
-                debug!("New Follows: {:?}", new_follows);
-
-                let new_follow_tier = account.tier.raise_tier();
-                self.update_follows_recursively::<&str, Error>(
-                    l.0,
-                    new_follows,
-                    new_follow_tier,
-                    0,
-                )?;
+                debug!("{} followed: {:?}", account.pubkey, new_follows);
 
                 let unfollowed: HashSet<String> =
                     current_follows.difference(l.1).cloned().collect();
-                debug!("Unfollowed: {:?}", unfollowed);
-                let unfollowed_tier = Tier::Other;
-                self.update_followers_recursively::<&str, Error>(
-                    l.0,
-                    unfollowed.clone(),
-                    unfollowed_tier,
-                )?;
+                debug!("{} unfollowed {unfollowed:?}", account.pubkey);
 
                 self.remove_follows(l.0, &unfollowed)?;
                 self.remove_followers(l.0, &unfollowed)?;
+
+                let new_follow_tier = account.tier.raise_tier();
+                self.update_follows(new_follows, new_follow_tier)?;
+
+                let unfollowed_tier = Tier::Other;
+                self.update_follows(unfollowed, unfollowed_tier)?;
             }
         }
         self.set_contact_list(contacts)?;
         Ok(())
     }
 
-    fn update_followers_recursively<T, E>(
-        &mut self,
-        pubkey: &str,
-        unfollowed: HashSet<String>,
-        min_tier: Tier,
-    ) -> Result<(), E>
-    where
-        T: Clone + PartialEq,
-        E: std::error::Error,
-    {
-        for f in &unfollowed {
-            self.update_account(f, min_tier).unwrap();
-            let followers: HashSet<String> = self
-                .get_followers(pubkey)
-                .unwrap()
-                .keys()
-                .cloned()
-                .collect();
-            for follower in &followers {
-                debug!("Updated follower {:?}", follower);
-                //let min_tier = min_tier.raise_tier();
-                self.update_followers_recursively::<T, E>(follower, followers.clone(), min_tier)?;
+    /// For the each follow in Set passed get their follows
+    /// Updated follow and each of their follow
+    fn update_follows(&self, follows: HashSet<String>, min_tier: Tier) -> Result<(), Error> {
+        for f in follows {
+            let follows_followers = self.get_follows(&f)?;
+            self.update_account(&f, min_tier)?;
+
+            for f_f in follows_followers {
+                let f_f_tier = min_tier.raise_tier();
+                self.update_account(&f_f, f_f_tier)?;
             }
         }
-
-        Ok(())
-    }
-
-    fn update_follows_recursively<T, E>(
-        &mut self,
-        pubkey: &str,
-        follows: HashSet<String>,
-        min_tier: Tier,
-        _counter: usize,
-    ) -> Result<(), E>
-    where
-        T: Clone + PartialEq,
-        E: std::error::Error,
-    {
-        if 4 - min_tier as usize == 0 {
-            return Ok(());
-        }
-        for f in &follows {
-            self.update_account(f, min_tier).unwrap();
-            let follows: HashSet<String> = self.get_follows(pubkey).unwrap();
-            for follow in &follows {
-                debug!("Updated follower {:?}", follow);
-                let min_tier = min_tier.raise_tier();
-                self.update_followers_recursively::<T, E>(follow, follows.clone(), min_tier)?;
-            }
-        }
-
         Ok(())
     }
 }
