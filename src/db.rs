@@ -265,21 +265,27 @@ impl Db {
         Ok(result.map(|e| e.value().to_string()).collect())
     }
 
-    fn get_followers(&self, pubkey: &str) -> Result<HashMap<String, Tier>, Error> {
+    fn get_account_tiers(&self, accounts: HashSet<String>) -> Result<HashMap<String, Tier>, Error> {
+        let mut accounts_with_tiers = HashMap::new();
+
+        for account in accounts {
+            let tier;
+            if let Some(t) = self.read_account(account.as_str())? {
+                tier = t.tier;
+            } else {
+                tier = Tier::Other;
+            }
+
+            accounts_with_tiers.insert(account, tier);
+        }
+        Ok(accounts_with_tiers)
+    }
+
+    fn get_followers(&self, pubkey: &str) -> Result<HashSet<String>, Error> {
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_multimap_table(FOLLOWERSTABLE)?;
 
-        // let result: HashSet<&str> = table.get(pubkey)?.map(|p| p.value().clone()).collect();
-        let result: HashSet<String> = table.get(pubkey)?.map(|p| p.value().to_owned()).collect();
-        let account_table = read_txn.open_table(ACCOUNTTABLE)?;
-
-        // This is unreadble
-        let followers = result
-            .iter()
-            .map(|p| (p, account_table.get(&**p)))
-            .filter_map(|(p, a)| a.ok().filter(|a| a.is_some()).map(|a| (p, a.unwrap())))
-            .map(|(p, t)| (p.to_string(), Tier::from(t.value())))
-            .collect();
+        let followers: HashSet<String> = table.get(pubkey)?.map(|p| p.value().to_owned()).collect();
 
         debug!("{} followed by {:?}", pubkey, followers);
 
@@ -294,6 +300,7 @@ impl Db {
         // Get account followers
         let followers = self.get_followers(pubkey)?;
         debug!("Followers: {:?}", followers);
+        let followers = self.get_account_tiers(followers)?;
 
         // Min tier of follower
         if self.primary.contains(pubkey) {
@@ -388,6 +395,26 @@ mod tests {
         assert_eq!(vec![timestamp], events);
     }
 
-    // #[test]
-    // #[serial]
+    #[test]
+    #[serial]
+    fn test_set_contacts() {
+        let db = Db::new(HashSet::new());
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string();
+
+        let follow_one = "d81eb632d2385c3e6bdc8da5a32b57275348819aebd39ff74613793f29694203".to_string();
+        let follow_two = "7c27a04b7c27299f16dc07d3eb8f28544f188bc7a34982328b7d581edc405dc2".to_string();
+
+        let follows = HashSet::from([follow_one.clone(), follow_two.clone()]);
+
+        db.set_contact_list(&pubkey, &follows).unwrap();
+
+        let db_follows = db.get_follows(&pubkey).unwrap();
+
+        assert_eq!(follows, db_follows);
+
+        let db_followers = db.get_followers(&follow_one).unwrap();
+        assert_eq!(HashSet::from([pubkey.clone()]), db_followers);
+        let db_followers = db.get_followers(&follow_two).unwrap();
+        assert_eq!(HashSet::from([pubkey.clone()]), db_followers);
+    }
 }
