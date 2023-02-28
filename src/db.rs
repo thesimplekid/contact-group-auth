@@ -174,6 +174,12 @@ impl Db {
             while table.len()? > 0 {
                 let _ = table.pop_first();
             }
+            let mut table = write_txn.open_multimap_table(EVENTTABLE)?;
+            let keys: HashSet<String> = table.iter()?.map(|(x, _)| x.value().to_string()).collect();
+
+            for k in keys {
+                table.remove_all(k.as_str())?;
+            }
             let mut table = write_txn.open_multimap_table(FOLLOWSTABLE)?;
             let keys: HashSet<String> = table.iter()?.map(|(x, _)| x.value().to_string()).collect();
 
@@ -385,6 +391,7 @@ mod tests {
     #[serial]
     fn get_events() {
         let db = Db::new(HashSet::new());
+        db.clear_tables().unwrap();
         let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9";
 
         let timestamp = unix_time();
@@ -399,10 +406,13 @@ mod tests {
     #[serial]
     fn test_set_contacts() {
         let db = Db::new(HashSet::new());
+        db.clear_tables().unwrap();
         let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string();
 
-        let follow_one = "d81eb632d2385c3e6bdc8da5a32b57275348819aebd39ff74613793f29694203".to_string();
-        let follow_two = "7c27a04b7c27299f16dc07d3eb8f28544f188bc7a34982328b7d581edc405dc2".to_string();
+        let follow_one =
+            "d81eb632d2385c3e6bdc8da5a32b57275348819aebd39ff74613793f29694203".to_string();
+        let follow_two =
+            "7c27a04b7c27299f16dc07d3eb8f28544f188bc7a34982328b7d581edc405dc2".to_string();
 
         let follows = HashSet::from([follow_one.clone(), follow_two.clone()]);
 

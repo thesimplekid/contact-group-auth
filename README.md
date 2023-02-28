@@ -1,3 +1,6 @@
+## Contact Group gRPC Server
+[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE)
+
 
 ## TODO:
 - [x] some update logic is broken, follows of follows ... tiers are not updated
