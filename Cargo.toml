@@ -22,5 +22,8 @@ log = "0.4.17"
 ctrlc = "3.2.5"
 thiserror = "1"
 
+[dev-dependencies]
+serial_test = "1.0.0"
+
 [build-dependencies]
 tonic-build = { version="0.8.3", features = ["prost"] }

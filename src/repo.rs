@@ -39,12 +39,12 @@ impl Repo {
         self.db.lock().unwrap().set_contact_list(contacts)
     }
 
-    pub fn get_account(&self, pubkey: &str) -> Result<Option<Account>, Error> {
-        self.db.lock().unwrap().read_account(pubkey)
+    pub fn add_account(&self, account: &Account) -> Result<(), Error> {
+        self.db.lock().unwrap().write_account(&account)
     }
 
-    pub fn add_account(&self, account: Account) -> Result<(), Error> {
-        self.db.lock().unwrap().write_account(&account)
+    pub fn get_account(&self, pubkey: &str) -> Result<Option<Account>, Error> {
+        self.db.lock().unwrap().read_account(pubkey)
     }
 
     pub fn get_account_tier(&self, pubkey: &str) -> Result<Tier, Error> {
@@ -106,4 +106,45 @@ impl Repo {
 fn count_events_in_range(events: &[u64], range: u64) -> usize {
     let since_time = unix_time() - range;
     events.iter().filter(|&t| *t > since_time).count()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::unix_time;
+    use serial_test::serial;
+
+    use super::*;
+
+    #[test]
+    #[serial]
+    fn test_set_get_account() {
+        let primary_acounts = HashSet::from([
+            "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string(),
+        ]);
+        let repo = Repo::new(HashSet::new());
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9";
+        let account = Account {
+            pubkey: pubkey.to_string(),
+            tier: Tier::Primary,
+        };
+        repo.add_account(&account).unwrap();
+        let read_account = repo.get_account(pubkey).unwrap().unwrap();
+
+        assert_eq!(account, read_account);
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_account_tier() {
+        let repo = Repo::new(HashSet::new());
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9";
+        let account = Account {
+            pubkey: pubkey.to_string(),
+            tier: Tier::Primary,
+        };
+        repo.add_account(&account).unwrap();
+        let account_tier = repo.get_account_tier(pubkey).unwrap();
+
+        assert_eq!(Tier::Primary, account_tier);
+    }
 }

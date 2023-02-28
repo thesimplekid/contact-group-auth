@@ -64,6 +64,7 @@ impl Tier {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Account {
     pub pubkey: String,
     pub tier: Tier,
@@ -372,4 +373,31 @@ impl Db {
         }
         Ok(())
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+    use crate::utils::unix_time;
+
+    use super::*;
+    
+    #[test]
+    #[serial]
+    fn get_events() {
+        let db = Db::new(HashSet::new());
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9";
+
+        let timestamp = unix_time();
+        db.write_event(pubkey, timestamp).unwrap();
+
+        let events = db.get_events(pubkey).unwrap();
+
+        assert_eq!(vec![timestamp], events);
+
+    }
+
+    // #[test]
+    // #[serial] 
 }

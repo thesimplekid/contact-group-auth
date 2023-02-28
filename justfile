@@ -13,6 +13,6 @@ fix:
     cargo clippy --fix --allow-staged
 
 commit:
-    cargo fmt --check all
+    cargo fmt --check --all
     cargo clippy --all
     git commit
