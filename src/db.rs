@@ -192,16 +192,14 @@ impl Db {
         Ok(())
     }
 
-    fn add_follows(&self, contacts: &HashMap<String, HashSet<String>>) -> Result<(), Error> {
+    fn add_follows(&self, pubkey: &str, contacts: &HashSet<String>) -> Result<(), Error> {
         let write_txn = self.db.begin_write()?;
 
         {
             let mut follows_table = write_txn.open_multimap_table(FOLLOWSTABLE)?;
-            for (key, contact_list) in contacts {
-                for f in contact_list {
-                    debug!("Set follow {key}, {f}");
-                    follows_table.insert(key.as_str(), f.as_str())?;
-                }
+            for f in contacts {
+                debug!("Set follow {pubkey}, {f}");
+                follows_table.insert(pubkey, f.as_str())?;
             }
         }
         write_txn.commit().unwrap();
@@ -209,16 +207,14 @@ impl Db {
         Ok(())
     }
 
-    fn add_followers(&self, contacts: &HashMap<String, HashSet<String>>) -> Result<(), Error> {
+    fn add_followers(&self, pubkey: &str, contacts: &HashSet<String>) -> Result<(), Error> {
         let write_txn = self.db.begin_write()?;
 
         {
             let mut followers_table = write_txn.open_multimap_table(FOLLOWERSTABLE)?;
-            for (key, contact_list) in contacts {
-                for f in contact_list {
-                    debug!("Set follower {f}, {key}");
-                    followers_table.insert(f.as_str(), key.as_str())?;
-                }
+            for f in contacts {
+                debug!("Set follower {f}, {pubkey}");
+                followers_table.insert(f.as_str(), pubkey)?;
             }
         }
         write_txn.commit().unwrap();
@@ -254,12 +250,9 @@ impl Db {
         Ok(())
     }
 
-    pub fn set_contact_list(
-        &self,
-        contacts: &HashMap<String, HashSet<String>>,
-    ) -> Result<(), Error> {
-        self.add_followers(contacts)?;
-        self.add_follows(contacts)?;
+    pub fn set_contact_list(&self, pubkey: &str, contacts: &HashSet<String>) -> Result<(), Error> {
+        self.add_followers(pubkey, contacts)?;
+        self.add_follows(pubkey, contacts)?;
 
         Ok(())
     }
@@ -328,33 +321,32 @@ impl Db {
 
     pub fn update_contact_list(
         &mut self,
-        contacts: &HashMap<String, HashSet<String>>,
+        pubkey: &str,
+        new_contacts: &HashSet<String>,
     ) -> Result<(), Error> {
-        for l in contacts {
-            if let Some(account) = self.read_account(l.0)? {
-                // Get current list of follows
-                let current_follows = self.get_follows(l.0)?;
-                self.set_contact_list(contacts)?;
-                debug!("current follows: {:?}", current_follows);
-                debug!("new contact list {:?}", l.1);
+        if let Some(account) = self.read_account(pubkey)? {
+            // Get current list of follows
+            let current_follows = self.get_follows(pubkey)?;
+            self.set_contact_list(pubkey, new_contacts)?;
+            debug!("current follows: {:?}", current_follows);
+            debug!("new contact list {:?}", new_contacts);
 
-                let new_follows: HashSet<String> =
-                    l.1.difference(&current_follows).cloned().collect();
-                debug!("{} followed: {:?}", account.pubkey, new_follows);
+            let new_follows: HashSet<String> =
+                new_contacts.difference(&current_follows).cloned().collect();
+            debug!("{} followed: {:?}", account.pubkey, new_follows);
 
-                let unfollowed: HashSet<String> =
-                    current_follows.difference(l.1).cloned().collect();
-                debug!("{} unfollowed {unfollowed:?}", account.pubkey);
+            let unfollowed: HashSet<String> =
+                current_follows.difference(new_contacts).cloned().collect();
+            debug!("{} unfollowed {unfollowed:?}", account.pubkey);
 
-                self.remove_follows(l.0, &unfollowed)?;
-                self.remove_followers(l.0, &unfollowed)?;
+            self.remove_follows(pubkey, &unfollowed)?;
+            self.remove_followers(pubkey, &unfollowed)?;
 
-                let new_follow_tier = account.tier.raise_tier();
-                self.update_follows(new_follows, new_follow_tier)?;
+            let new_follow_tier = account.tier.raise_tier();
+            self.update_follows(new_follows, new_follow_tier)?;
 
-                let unfollowed_tier = Tier::Other;
-                self.update_follows(unfollowed, unfollowed_tier)?;
-            }
+            let unfollowed_tier = Tier::Other;
+            self.update_follows(unfollowed, unfollowed_tier)?;
         }
         Ok(())
     }
@@ -375,14 +367,13 @@ impl Db {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
     use crate::utils::unix_time;
+    use serial_test::serial;
 
     use super::*;
-    
+
     #[test]
     #[serial]
     fn get_events() {
@@ -395,9 +386,8 @@ mod tests {
         let events = db.get_events(pubkey).unwrap();
 
         assert_eq!(vec![timestamp], events);
-
     }
 
     // #[test]
-    // #[serial] 
+    // #[serial]
 }

@@ -60,26 +60,26 @@ impl Nostr {
             )
             .await?;
 
-        Ok(follows_from_events(events))
+        Ok(events
+            .iter()
+            .map(|e| {
+                let follows = follows_from_event(e);
+                (e.pubkey.to_string(), follows)
+            })
+            .collect())
+
+        // Ok(follows_from_events(events))
 
         // Create query for the contact list of each key in list
     }
 }
 
-pub fn follows_from_events(events: Vec<Event>) -> HashMap<String, HashSet<String>> {
-    let follows: HashMap<String, HashSet<String>> = events
+pub fn follows_from_event(event: &Event) -> HashSet<String> {
+    event
+        .tags
         .iter()
-        .map(|event| {
-            let f = event
-                .tags
-                .iter()
-                .map(|tag| tag.as_vec()[1].clone())
-                .collect();
-            (event.pubkey.to_string(), f)
-        })
-        .collect();
-
-    follows
+        .map(|tag| tag.as_vec()[1].clone())
+        .collect()
 }
 
 impl From<nauthz_grpc::Event> for Event {

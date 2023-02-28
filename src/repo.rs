@@ -4,7 +4,7 @@ use crate::db::{Account, Tier};
 use crate::error::Error;
 use crate::utils::unix_time;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use nostr_sdk::prelude::*;
@@ -34,13 +34,14 @@ impl Repo {
 
     pub async fn set_contact_list(
         &self,
-        contacts: &HashMap<String, HashSet<String>>,
+        pubkey: &str,
+        contacts: &HashSet<String>,
     ) -> Result<(), Error> {
-        self.db.lock().unwrap().set_contact_list(contacts)
+        self.db.lock().unwrap().set_contact_list(pubkey, contacts)
     }
 
     pub fn add_account(&self, account: &Account) -> Result<(), Error> {
-        self.db.lock().unwrap().write_account(&account)
+        self.db.lock().unwrap().write_account(account)
     }
 
     pub fn get_account(&self, pubkey: &str) -> Result<Option<Account>, Error> {
@@ -92,9 +93,13 @@ impl Repo {
 
     pub async fn update_contacts(
         &self,
-        contacts: HashMap<String, HashSet<String>>,
+        pubkey: &str,
+        contacts: HashSet<String>,
     ) -> Result<(), Error> {
-        self.db.lock().unwrap().update_contact_list(&contacts)
+        self.db
+            .lock()
+            .unwrap()
+            .update_contact_list(pubkey, &contacts)
     }
 
     /// Clears account tables
@@ -110,7 +115,7 @@ fn count_events_in_range(events: &[u64], range: u64) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::unix_time;
+
     use serial_test::serial;
 
     use super::*;
@@ -118,7 +123,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_set_get_account() {
-        let primary_acounts = HashSet::from([
+        let _primary_acounts = HashSet::from([
             "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string(),
         ]);
         let repo = Repo::new(HashSet::new());

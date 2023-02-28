@@ -10,7 +10,7 @@ use crate::error::Error;
 use crate::nostr::Nostr;
 use crate::repo::Repo;
 
-use crate::nostr::follows_from_events;
+use crate::nostr::follows_from_event;
 
 use tracing::{debug, info};
 
@@ -68,10 +68,13 @@ impl Authorization for EventAuthz {
                         let repo = self.repo.clone();
                         // let handle: task::JoinHandle<Result<(), Error>> = task::spawn(async move {
 
-                        let contacts = follows_from_events(vec![event.try_into().unwrap()]);
+                        let nos_event = event.try_into().unwrap();
+                        let contacts = follows_from_event(&nos_event);
 
                         debug!("New contacts: {:?}", contacts);
-                        repo.update_contacts(contacts).await.unwrap();
+                        repo.update_contacts(&nos_event.pubkey.to_hex(), contacts)
+                            .await
+                            .unwrap();
 
                         repo.get_all_accounts().unwrap();
 
@@ -176,7 +179,9 @@ async fn init(settings: &Settings, repo: &Repo, nos: &Nostr) -> Result<(), Error
 
     // TODO: Spawn this so next request can start
     repo.set_tier(&primary_follows, Tier::Secondary).await?;
-    repo.set_contact_list(&primary_contacts).await?;
+    for (pubkey, contacts) in primary_contacts {
+        repo.set_contact_list(&pubkey, &contacts).await?;
+    }
 
     // Add keys from contacts lists to db as One
     let secondary_contacts = nos.get_contact_lists(&primary_follows).await?;
@@ -188,7 +193,9 @@ async fn init(settings: &Settings, repo: &Repo, nos: &Nostr) -> Result<(), Error
 
     // TODO: Spawn this so next request can start
     repo.set_tier(secondary_follows, Tier::Tertiary).await?;
-    repo.set_contact_list(&secondary_contacts).await?;
+    for (pubkey, contacts) in secondary_contacts {
+        repo.set_contact_list(&pubkey, &contacts).await?;
+    }
 
     let tertiary_contacts = nos.get_contact_lists(secondary_follows).await?;
     let tertiary_follows = tertiary_contacts
@@ -201,6 +208,8 @@ async fn init(settings: &Settings, repo: &Repo, nos: &Nostr) -> Result<(), Error
 
     // TODO: Spawn this so next request can start
     repo.set_tier(&tertiary_follows, Tier::Quaternary).await?;
-    repo.set_contact_list(&tertiary_contacts).await?;
+    for (pubkey, contacts) in tertiary_contacts {
+        repo.set_contact_list(&pubkey, &contacts).await?;
+    }
     Ok(())
 }
