@@ -24,6 +24,7 @@ thiserror = "1"
 
 [dev-dependencies]
 serial_test = "1.0.0"
+tracing-test = "0.2.4"
 
 [build-dependencies]
 tonic-build = { version="0.8.3", features = ["prost"] }

@@ -7,7 +7,7 @@ check:
     cargo fmt --check --all
     cargo clippy --all
 test:
-    cargo test --workspace
+    cargo test
 fix: 
     cargo fmt
     cargo clippy --fix --allow-staged

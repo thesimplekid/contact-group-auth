@@ -257,6 +257,7 @@ impl Db {
     }
 
     pub fn set_contact_list(&self, pubkey: &str, contacts: &HashSet<String>) -> Result<(), Error> {
+        println!("Setting contacts");
         self.add_followers(pubkey, contacts)?;
         self.add_follows(pubkey, contacts)?;
 
@@ -333,7 +334,7 @@ impl Db {
     }
 
     pub fn update_contact_list(
-        &mut self,
+        &self,
         pubkey: &str,
         new_contacts: &HashSet<String>,
     ) -> Result<(), Error> {
@@ -385,6 +386,9 @@ mod tests {
     use crate::utils::unix_time;
     use serial_test::serial;
 
+    // use tracing::{debug, error, info};
+    // use tracing_test::traced_test;
+
     use super::*;
 
     #[test]
@@ -406,6 +410,7 @@ mod tests {
     #[serial]
     fn test_set_contacts() {
         let db = Db::new(HashSet::new());
+        debug!("setting contacts");
         db.clear_tables().unwrap();
         let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string();
 
@@ -416,7 +421,13 @@ mod tests {
 
         let follows = HashSet::from([follow_one.clone(), follow_two.clone()]);
 
+        let primary_account = Account {
+            pubkey: pubkey.clone(),
+            tier: Tier::Primary,
+        };
+        db.write_account(&primary_account).unwrap();
         db.set_contact_list(&pubkey, &follows).unwrap();
+        db.update_follows(follows.clone(), Tier::Secondary).unwrap();
 
         let db_follows = db.get_follows(&pubkey).unwrap();
 
@@ -426,5 +437,221 @@ mod tests {
         assert_eq!(HashSet::from([pubkey.clone()]), db_followers);
         let db_followers = db.get_followers(&follow_two).unwrap();
         assert_eq!(HashSet::from([pubkey.clone()]), db_followers);
+
+        assert_eq!(primary_account, db.read_account(&pubkey).unwrap().unwrap());
+        let one_account = Account {
+            pubkey: follow_one.clone(),
+            tier: Tier::Secondary,
+        };
+        assert_eq!(one_account, db.read_account(&follow_one).unwrap().unwrap());
+        let two_account = Account {
+            pubkey: follow_two.clone(),
+            tier: Tier::Secondary,
+        };
+        assert_eq!(
+            two_account,
+            db.read_account(&follow_two.clone()).unwrap().unwrap()
+        );
+    }
+
+    // Test that a primary user can unfollow a user
+    // #[traced_test]
+    #[test]
+    #[serial]
+    fn test_primary_unfollow() {
+        let db = Db::new(HashSet::new());
+        db.clear_tables().unwrap();
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string();
+
+        let follow_one =
+            "d81eb632d2385c3e6bdc8da5a32b57275348819aebd39ff74613793f29694203".to_string();
+        let follow_two =
+            "7c27a04b7c27299f16dc07d3eb8f28544f188bc7a34982328b7d581edc405dc2".to_string();
+
+        let follows = HashSet::from([follow_one.clone(), follow_two.clone()]);
+
+        let primary_account = Account {
+            pubkey: pubkey.clone(),
+            tier: Tier::Primary,
+        };
+        db.write_account(&primary_account).unwrap();
+        db.set_contact_list(&pubkey, &follows.clone()).unwrap();
+        db.update_follows(follows, Tier::Secondary).unwrap();
+
+        let new_contacts = HashSet::from([follow_one.clone()]);
+
+        db.update_contact_list(&pubkey, &new_contacts).unwrap();
+        let db_follows = db.get_follows(&pubkey).unwrap();
+
+        assert_eq!(new_contacts, db_follows);
+
+        assert_eq!(primary_account, db.read_account(&pubkey).unwrap().unwrap());
+
+        let one_account = Account {
+            pubkey: follow_one.clone(),
+            tier: Tier::Secondary,
+        };
+        assert_eq!(one_account, db.read_account(&follow_one).unwrap().unwrap());
+
+        let two_account = Account {
+            pubkey: follow_two.clone(),
+            tier: Tier::Other,
+        };
+        assert_eq!(
+            two_account,
+            db.read_account(&follow_two.clone()).unwrap().unwrap()
+        );
+    }
+
+    #[test]
+    #[serial]
+    // #[traced_test]
+    fn primary_unfollow_with_tier() {
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string();
+        let db = Db::new(HashSet::from([pubkey.clone()]));
+        db.clear_tables().unwrap();
+
+        let follow_one =
+            "d81eb632d2385c3e6bdc8da5a32b57275348819aebd39ff74613793f29694203".to_string();
+        let follow_two =
+            "7c27a04b7c27299f16dc07d3eb8f28544f188bc7a34982328b7d581edc405dc2".to_string();
+
+        let follows = HashSet::from([follow_one.clone(), follow_two.clone()]);
+
+        let primary_account = Account {
+            pubkey: pubkey.clone(),
+            tier: Tier::Primary,
+        };
+        db.write_account(&primary_account).unwrap();
+        db.set_contact_list(&pubkey, &follows.clone()).unwrap();
+        db.update_follows(follows, Tier::Secondary).unwrap();
+
+        let t_follow =
+            "5b3a49bcbdf41f511f5c9034dbe46240863b73b39a2fdfebfb611f23b88d3922".to_string();
+
+        let t_follows = HashSet::from([t_follow.clone()]);
+        db.set_contact_list(&follow_one, &t_follows).unwrap();
+        db.update_follows(t_follows, Tier::Tertiary).unwrap();
+
+        let t_account = Account {
+            pubkey: t_follow.clone(),
+            tier: Tier::Tertiary,
+        };
+        assert_eq!(
+            t_account,
+            db.read_account(&t_follow.clone()).unwrap().unwrap()
+        );
+
+        let new_contacts = HashSet::from([follow_two.clone()]);
+
+        db.update_contact_list(&pubkey, &new_contacts).unwrap();
+        let db_follows = db.get_follows(&pubkey).unwrap();
+
+        assert_eq!(new_contacts, db_follows);
+
+        assert_eq!(primary_account, db.read_account(&pubkey).unwrap().unwrap());
+
+        let one_account = Account {
+            pubkey: follow_one.clone(),
+            tier: Tier::Other,
+        };
+        assert_eq!(one_account, db.read_account(&follow_one).unwrap().unwrap());
+
+        let two_account = Account {
+            pubkey: follow_two.clone(),
+            tier: Tier::Secondary,
+        };
+        assert_eq!(
+            two_account,
+            db.read_account(&follow_two.clone()).unwrap().unwrap()
+        );
+
+        let t_account = Account {
+            pubkey: t_follow.clone(),
+            tier: Tier::Other,
+        };
+        assert_eq!(
+            t_account,
+            db.read_account(&t_follow.clone()).unwrap().unwrap()
+        );
+        // Unfollow sec should also set t to other
+    }
+
+    #[test]
+    #[serial]
+    // #[traced_test]
+    fn primary_unfollow_with_tier_refollow() {
+        let pubkey = "7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9".to_string();
+        let db = Db::new(HashSet::from([pubkey.clone()]));
+        db.clear_tables().unwrap();
+
+        let follow_one =
+            "d81eb632d2385c3e6bdc8da5a32b57275348819aebd39ff74613793f29694203".to_string();
+        let follow_two =
+            "7c27a04b7c27299f16dc07d3eb8f28544f188bc7a34982328b7d581edc405dc2".to_string();
+
+        let follows = HashSet::from([follow_one.clone(), follow_two.clone()]);
+
+        let primary_account = Account {
+            pubkey: pubkey.clone(),
+            tier: Tier::Primary,
+        };
+        db.write_account(&primary_account).unwrap();
+        db.set_contact_list(&pubkey, &follows.clone()).unwrap();
+        db.update_follows(follows.clone(), Tier::Secondary).unwrap();
+
+        let t_follow =
+            "5b3a49bcbdf41f511f5c9034dbe46240863b73b39a2fdfebfb611f23b88d3922".to_string();
+
+        let t_follows = HashSet::from([t_follow.clone()]);
+        db.set_contact_list(&follow_one, &t_follows).unwrap();
+        db.update_follows(t_follows, Tier::Tertiary).unwrap();
+
+        let t_account = Account {
+            pubkey: t_follow.clone(),
+            tier: Tier::Tertiary,
+        };
+        assert_eq!(
+            t_account,
+            db.read_account(&t_follow.clone()).unwrap().unwrap()
+        );
+
+        let new_contacts = HashSet::from([follow_two.clone()]);
+
+        // Unfollow secondary
+        db.update_contact_list(&pubkey, &new_contacts).unwrap();
+        let db_follows = db.get_follows(&pubkey).unwrap();
+
+        assert_eq!(new_contacts, db_follows);
+
+        // Refollow secondary
+        db.update_contact_list(&pubkey, &follows).unwrap();
+
+        assert_eq!(primary_account, db.read_account(&pubkey).unwrap().unwrap());
+
+        let one_account = Account {
+            pubkey: follow_one.clone(),
+            tier: Tier::Secondary,
+        };
+        assert_eq!(one_account, db.read_account(&follow_one).unwrap().unwrap());
+
+        let two_account = Account {
+            pubkey: follow_two.clone(),
+            tier: Tier::Secondary,
+        };
+        assert_eq!(
+            two_account,
+            db.read_account(&follow_two.clone()).unwrap().unwrap()
+        );
+
+        let t_account = Account {
+            pubkey: t_follow.clone(),
+            tier: Tier::Tertiary,
+        };
+        assert_eq!(
+            t_account,
+            db.read_account(&t_follow.clone()).unwrap().unwrap()
+        );
+        // Unfollow sec should also set t to other
     }
 }
