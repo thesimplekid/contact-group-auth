@@ -37,7 +37,7 @@ impl Nostr {
     ) -> Result<HashMap<String, HashSet<String>>, Error> {
         let authors: Vec<XOnlyPublicKey> = keys
             .iter()
-            .map(|a| XOnlyPublicKey::from_str(a.as_str()).expect("Invalid public key"))
+            .flat_map(|a| XOnlyPublicKey::from_str(a.as_str()))
             .collect();
 
         let events: Vec<Event> = self

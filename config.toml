@@ -1,6 +1,6 @@
 [info]
 relay_url = "ws://localhost:8080/"
-primary_keys = ["7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9"]
+primary_keys = ["7995c67e4b40fcc88f7603fcedb5f2133a74b89b2678a332b21faee725f039f9", "04918dfc36c93e7db6cc0d60f37e1522f1c36b64d3f4b424c532d7c595febbc5"]
 
 [primary]
 can_publish = true
@@ -10,7 +10,7 @@ can_publish = true
 # events_per_hour = 100
 
 [tertiary]
-can_publish = true
+can_publish = false
 # events_per_hour = 50
 
 [quaternary]

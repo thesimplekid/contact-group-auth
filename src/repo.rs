@@ -69,22 +69,22 @@ impl Repo {
         limits: &Limitation,
         pubkey: &str,
     ) -> Result<(bool, Option<String>), Error> {
-        let events = self.db.lock().unwrap().get_events(pubkey)?;
-        let past_day = count_events_in_range(&events, 86400);
-        let past_hour = count_events_in_range(&events, 3600);
-
-        info!("Events past hour: {past_hour} for {pubkey}");
-        info!("Events past day: {past_day} for {pubkey}");
-
-        if let Some(max_per_day) = limits.events_per_day {
-            if past_day > max_per_day {
-                return Ok((false, Some("24 hours limit exhausted".to_string())));
+        if limits.events_per_day.is_some() || limits.events_per_day.is_some() {
+            let events = self.db.lock().unwrap().get_events(pubkey)?;
+            if let Some(max_per_day) = limits.events_per_day {
+                let past_day = count_events_in_range(&events, 86400);
+                info!("Events past day: {past_day} for {pubkey}");
+                if past_day > max_per_day {
+                    return Ok((false, Some("24 hours limit exhausted".to_string())));
+                }
             }
-        }
 
-        if let Some(max_per_hour) = limits.events_per_hour {
-            if past_hour > max_per_hour {
-                return Ok((false, Some("Hour limit exhausted".to_string())));
+            if let Some(max_per_hour) = limits.events_per_hour {
+                let past_hour = count_events_in_range(&events, 3600);
+                info!("Events past hour: {past_hour} for {pubkey}");
+                if past_hour > max_per_hour {
+                    return Ok((false, Some("Hour limit exhausted".to_string())));
+                }
             }
         }
 

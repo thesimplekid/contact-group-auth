@@ -162,12 +162,12 @@ async fn init(settings: &Settings, repo: &Repo, nos: &Nostr) -> Result<(), Error
     let primary = settings.info.primary_keys.to_owned();
 
     repo.set_tier(&primary, Tier::Primary).await?;
+    debug!("{} primary accounts set", primary.len());
 
     let nos_clone = nos.clone();
     let primary_contacts = nos_clone.get_contact_lists(&primary).await?;
     // Add primary keys to DB
 
-    debug!("{primary_contacts:?}");
     // Filters out events that already have a higher status
     // 1let one: HashMap<String, HashSet<String>> = one.into_iter().filter(|(k, _)| !primary.contains(k)).collect();
     let primary_follows = primary_contacts
@@ -175,16 +175,19 @@ async fn init(settings: &Settings, repo: &Repo, nos: &Nostr) -> Result<(), Error
         .flat_map(|(_k, f)| f.clone())
         .filter(|k| !primary.contains(k))
         .collect();
-    debug!("{primary_follows:?}");
 
+    info!("Prima");
     // TODO: Spawn this so next request can start
     repo.set_tier(&primary_follows, Tier::Secondary).await?;
+    info!("{} secondary accounts set", primary_follows.len());
+
     for (pubkey, contacts) in primary_contacts {
-        repo.set_contact_list(&pubkey, &contacts).await?;
+        repo.update_contacts(&pubkey, contacts).await?;
     }
 
     // Add keys from contacts lists to db as One
-    let secondary_contacts = nos.get_contact_lists(&primary_follows).await?;
+    let mut secondary_contacts = nos.get_contact_lists(&primary_follows).await?;
+    secondary_contacts.retain(|k, _| !primary.contains(k) || !primary_follows.contains(k));
     let secondary_follows = &secondary_contacts
         .iter()
         .flat_map(|(_k, f)| f.clone())
@@ -193,23 +196,33 @@ async fn init(settings: &Settings, repo: &Repo, nos: &Nostr) -> Result<(), Error
 
     // TODO: Spawn this so next request can start
     repo.set_tier(secondary_follows, Tier::Tertiary).await?;
+    info!("{} tertiary accounts set", secondary_follows.len());
     for (pubkey, contacts) in secondary_contacts {
-        repo.set_contact_list(&pubkey, &contacts).await?;
+        repo.update_contacts(&pubkey, contacts).await?;
     }
 
-    let tertiary_contacts = nos.get_contact_lists(secondary_follows).await?;
+    /*
+
+    let mut tertiary_contacts = nos.get_contact_lists(secondary_follows).await?;
+    tertiary_contacts.retain(|k, _| !primary.contains(k) || !primary_follows.contains(k) || !secondary_follows.contains(k));
     let tertiary_follows = tertiary_contacts
         .iter()
         .flat_map(|(_k, f)| f.clone())
         .filter(|k| {
-            !primary.contains(k) || !primary_follows.contains(k) || !secondary_follows.contains(k)
+            !primary.contains(k) || !primary_follows.contains(k) || !secondary_follows.contains(k) || !tertiary_contacts.contains_key(k)
         })
         .collect();
 
     // TODO: Spawn this so next request can start
     repo.set_tier(&tertiary_follows, Tier::Quaternary).await?;
     for (pubkey, contacts) in tertiary_contacts {
-        repo.set_contact_list(&pubkey, &contacts).await?;
+        // repo.set_contact_list(&pubkey, &contacts).await?;
+        debug!("Updating");
+        repo.update_contacts(&pubkey, contacts).await.unwrap();
+        debug!("Updated");
     }
+    */
+
+    info!("Accounts set");
     Ok(())
 }
